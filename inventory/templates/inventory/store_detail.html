@@ -1,0 +1,26 @@
+{% extends "inventory/base.html" %}
+
+{% block content %}
+
+<h1>{{ store.name }}</h1>
+
+{% if inventory_items %}
+<ul>
+{% for item in inventory_items %}
+    <li>
+        {{ item.product.name }} —
+        {% if item.quantity > 0 %}
+            {{ item.quantity }} units
+        {% else %}
+            Out of stock
+        {% endif %}
+    </li>
+{% endfor %}
+</ul>
+{% else %}
+<p>No products available in this store.</p>
+{% endif %}
+
+<a href="{% url 'inventory:stores' %}">Back to Stores</a>
+
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "inventory/base.html" %}
+
+{% block content %}
+
+<h2>Stores</h2>
+
+{% if stores %}
+<ul>
+    {% for s in stores %}
+        <li>
+            <a href="{% url 'inventory:store_detail' s.id %}">
+                {{ s.name }}
+            </a>
+            <a href="{% url 'inventory:edit_store' s.id %}">
+                Edit
+            </a>
+        </li>
+    {% endfor %}
+</ul>
+{% else %}
+    <p>No stores available.</p>
+{% endif %}
+
+<a href="{% url 'inventory:home' %}">Back to Home</a>
+
+{% endblock %}

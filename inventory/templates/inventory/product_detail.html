@@ -1,0 +1,30 @@
+{% extends "inventory/base.html" %}
+
+{% block content %}
+
+<h1>{{ product.name }}</h1>
+
+<p>Price: ₹{{ product.price }}</p>
+
+<h3>Available in Stores</h3>
+
+{% if inventory_items %}
+<ul>
+{% for item in inventory_items %}
+    <li>
+        {{ item.store.name }} —
+        {% if item.quantity > 0 %}
+            {{ item.quantity }} units
+        {% else %}
+            <span style="color:red;">Out of stock</span>
+        {% endif %}
+    </li>
+{% endfor %}
+</ul>
+{% else %}
+<p>This product is not available in any store.</p>
+{% endif %}
+
+<a href="{% url 'inventory:product' %}">Back to Products</a>
+
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "inventory/base.html" %}
+
+{% block content %}
+
+<h2>Products</h2>
+
+<a href="{% url 'inventory:add_product' %}">
+Add Product
+</a>
+
+{% if products %}
+<ul>
+    {% for p in products %}
+        <li>
+            <a href="{% url 'inventory:product_detail' p.id %}">
+                {{ p.name }}
+            </a>
+            <a href="{% url 'inventory:edit_product' p.id %}">Edit</a>
+            <a href="{% url 'inventory:delete_product' p.id %}">Delete</a>
+        </li>
+    {% endfor %}
+</ul>
+{% else %}
+    <p>No products available.</p>
+{% endif %}
+
+<a href="{% url 'inventory:home' %}">Back to Home</a>
+
+{% endblock %}

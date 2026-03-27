@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Retail Management System</title>
+</head>
+<body>
+
+<h1>Retail Management System</h1>
+
+<nav>
+    <a href="{% url 'inventory:home' %}">Home</a> |
+    <a href="{% url 'inventory:product' %}">Products</a> |
+    <a href="{% url 'inventory:inventory' %}">Inventory</a> |
+    <a href="{% url 'inventory:stores' %}">Stores</a>
+</nav>
+
+<hr>
+
+{% block content %}
+{% endblock %}
+
+</body>
+</html>

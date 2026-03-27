@@ -1,0 +1,56 @@
+{% extends "inventory/base.html" %}
+
+{% block content %}
+
+<h2>Inventory</h2>
+
+{% if inventory_items %}
+
+<table border="1">
+
+<tr>
+<th>Product</th>
+<th>Store</th>
+<th>Quantity</th>
+<th>Action</th>
+</tr>
+
+{% for item in inventory_items %}
+
+<tr>
+
+<td>{{ item.product.name }}</td>
+
+<td>{{ item.store.name }}</td>
+
+<td>
+{% if item.quantity > 0 %}
+{{ item.quantity }}
+{% else %}
+Out of stock
+{% endif %}
+</td>
+
+<td>
+<a href="{% url 'inventory:edit_inventory' item.id %}">
+Edit
+</a>
+</td>
+
+</tr>
+
+{% endfor %}
+
+</table>
+
+{% else %}
+
+<p>No inventory records available.</p>
+
+{% endif %}
+
+<a href="{% url 'inventory:add_inventory' %}">Add Inventory</a>
+<a href="{% url 'inventory:home' %}">Back to Home</a>
+
+
+{% endblock %}
