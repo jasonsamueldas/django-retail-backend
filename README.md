@@ -70,24 +70,34 @@ features.
 
 ### 1. Clone the repository
 
+```
 git clone https://github.com/YOUR_USERNAME/django-retail-backend.git cd
 django-retail-backend
+```
 
 ### 2. Create virtual environment
 
+```
 python -m venv venv venv`\Scripts`{=tex}`\activate`{=tex}
+```
 
 ### 3. Install dependencies
 
+```
 pip install -r requirements.txt
+```
 
 ### 4. Run migrations
 
+```
 python manage.py migrate
+```
 
 ### 5. Run the server
 
+```
 python manage.py runserver
+```
 
 ------------------------------------------------------------------------
 
@@ -95,35 +105,40 @@ python manage.py runserver
 
 ### Products
 
+```
 -   GET /api/products/
 -   POST /api/products/
+```
 
 ### Stores
 
+```
 -   GET /api/stores/
 -   POST /api/stores/
 
+```
 ### Inventory
 
+```
 -   GET /api/inventory/
 -   POST /api/inventory/
+```
 
 ------------------------------------------------------------------------
 
 ### Reporting Endpoints
 
-Low Stock: GET /api/inventory/low_stock/?threshold=5
+Low Stock: GET ```/api/inventory/low_stock/?threshold=5```
 
-Out of Stock: GET /api/inventory/out_of_stock/
+Out of Stock: GET ```/api/inventory/out_of_stock/```
 
-Total by Product: GET
-/api/inventory/total_by_product/?ordering=-total_quantity
+Total by Product: GET ```/api/inventory/total_by_product/?ordering=-total_quantity```
 
-Total by Store: GET
-/api/inventory/total_by_store/?ordering=-total_quantity
+Total by Store: GET ```/api/inventory/total_by_store/?ordering=-total_quantity```
 
-Dashboard Summary: GET /api/dashboard/summary/ GET
-/api/dashboard/summary/?threshold=5
+Dashboard Summary: 
+GET ```/api/dashboard/summary/ ```
+GET ```/api/dashboard/summary/?threshold=5```
 
 ------------------------------------------------------------------------
 
