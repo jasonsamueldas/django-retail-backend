@@ -1,13 +1,20 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from .models import Product, Store, Inventory
+from .models import Product, Store, Inventory, InventoryTransaction
 from .forms import ProductForm, InventoryForm, InventoryUpdateForm, StoreForm
+from .permissions import IsAdminOrManagerWithStore, IsAdmin, IsSameStore
 from django.db.models import Sum
+from django.db import transaction
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.views import APIView
+from rest_framework.exceptions import ValidationError
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework import status, filters
-from .serializer import ProductSerializer, StoreSerializer, InventorySerializer
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from .pagination import CustomPagination 
+from .serializer import ProductSerializer, StoreSerializer, InventorySerializer, InventoryTransactionSerializer
+from .utils import get_inventory_queryset_for_user
 
 
 def home(request):
@@ -133,11 +140,17 @@ def edit_store(request, store_id):
 
 
 class ProductViewSet(ModelViewSet):
+    
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     filter_backends = [filters.OrderingFilter, filters.SearchFilter]
     search_fields = ['name']
     ordering_fields = ['price','name']
+
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [AllowAny()]
+        return [IsAdmin()]
     
     def perform_create(self,serializer):
         print("Creating product...")
@@ -150,132 +163,117 @@ class ProductViewSet(ModelViewSet):
         return Response(serializer.data)
 
 class StoreViewSet(ModelViewSet):
-    queryset = Store.objects.all()
+    permission_classes = [IsAuthenticated]
     serializer_class = StoreSerializer
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Store.objects.none()
+        user = self.request.user
+
+        if user.role == 'admin':
+            return Store.objects.all()
+
+        if not user.store:
+            return Store.objects.none()
+
+        return Store.objects.filter(id=user.store.id)
     
 class InventoryViewSet(ModelViewSet):
-    queryset = Inventory.objects.select_related('product','store').all()
+    permission_classes = [IsAdminOrManagerWithStore]
+    pagination_class = CustomPagination
     serializer_class = InventorySerializer
-    filter_backends = [filters.OrderingFilter]
-    ordering_fields = ['quantity']
+    filter_backends = [DjangoFilterBackend,filters.OrderingFilter,filters.SearchFilter]
+    filterset_fields = ['product','store']
+    ordering_fields = ['quantity','product__name', 'store__name']
+    search_fields = ['product__name','store__name']
 
-    def create(self, request, *args, **kwargs):
-        product_id = request.data.get('product')
-        store_id = request.data.get('store')
-        if not Product.objects.filter(id=product_id).exists():
-            return Response({"error": "Invalid product"}, status=400)
-        if not Store.objects.filter(id=store_id).exists():
-            return Response({"error": "Invalid store"}, status=400)
-        try:
-            quantity = int(request.data.get('quantity',0))
-        except ValueError:
-            return Response({"error":"Invalid quantity"},status=400)
+    http_method_names = ['get']
 
-        try:
-            inventory = Inventory.objects.get(product_id = product_id, store_id = store_id)
-            if inventory.quantity + quantity < 0:
-                return Response({"error":"Not enough stock"},status=400)
-            inventory.quantity += quantity
-            inventory.save()
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Inventory.objects.none()
+        return get_inventory_queryset_for_user(self.request.user).select_related('product', 'store')
 
-            serializer = self.get_serializer(inventory)
-            return Response(serializer.data,status=status.HTTP_200_OK)
-        except Inventory.DoesNotExist:
-            return super().create(request,*args,**kwargs)
-    
-    @action(detail=False,methods=['get'])
+    @action(detail=False, methods=['get'])
     def low_stock(self, request):
-        threshold = request.query_params.get('threshold',15)
+        threshold = request.query_params.get('threshold', 15)
         try:
             threshold = int(threshold)
         except ValueError:
-            return Response({"error":"Threshold must be a number"},status=400)
-        ordering = request.query_params.get('ordering', 'quantity')
+            return Response({"error": "Threshold must be a number"}, status=400)
 
-        low_stock_items = self.queryset.filter(quantity__lt=threshold).order_by(ordering)
-
-        data = [
-            {
-            "product_id": item.product.id,
-            "product_name": item.product.name,
-            "store_id": item.store.id,
-            "store_name": item.store.name,
-            "quantity": item.quantity
-            }
-            for item in low_stock_items
-        ]
-        return Response({   
-            "count": len(data),
-            "results": data
+        queryset = self.get_queryset().filter(quantity__lt=threshold)
+        queryset = self.filter_queryset(queryset)
+        
+        count = queryset.count() 
+        serializer = self.get_serializer(queryset, many=True)
+        
+        return Response({
+            "count": count,
+            "results": serializer.data
         })
+    
 
-    @action(detail=False,methods=['get'])
+    @action(detail=False, methods=['get'])
     def out_of_stock(self, request):
-        items = self.queryset.filter(quantity=0)
-        data = [
-            {
-            "product_id": item.product.id,
-            "product_name": item.product.name,
-            "store_id": item.store.id,
-            "store_name": item.store.name,
-            "quantity": item.quantity
-            }
-            for item in items
-        ]
-        return Response({   
-            "count": len(data),
-            "results": data
+        queryset = self.get_queryset().filter(quantity=0)
+        queryset = self.filter_queryset(queryset)
+        
+        count = queryset.count()
+        serializer = self.get_serializer(queryset, many=True)
+        
+        return Response({
+            "count": count,
+            "results": serializer.data
         })
 
-    @action(detail=False,methods=['get'])
+    @action(detail=False, methods=['get'])
     def total_by_product(self, request):
-        ordering = request.query_params.get('ordering', 'product__name')
-        data = (
-            self.queryset.values('product__id','product__name').annotate(total_quantity=Sum('quantity')).order_by(ordering)
+        queryset = (
+            self.get_queryset()
+            .values('product__id', 'product__name')
+            .annotate(total_quantity=Sum('quantity'))
+            .order_by('product__name')
         )
-        result = [
-            {
-                "product_id":item['product__id'],
-                "product_name":item['product__name'],
-                "total_quantity":item['total_quantity']
-            }
-            for item in data
-        ]
-        return Response({   
-            "count": len(result),
-            "results": result
-        })
+        queryset = self.filter_queryset(queryset)
 
-    @action(detail=False,methods=['get'])
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            return self.get_paginated_response(page)
+
+        return Response(list(queryset))
+
+    @action(detail=False, methods=['get'])
     def total_by_store(self, request):
-        ordering = request.query_params.get('ordering', 'store__name')
-        data = (
-            self.queryset.values('store__id','store__name').annotate(total_quantity=Sum('quantity')).order_by(ordering)
+        queryset = (
+            self.get_queryset()
+            .values('store__id', 'store__name')
+            .annotate(total_quantity=Sum('quantity'))
+            .order_by('store__name')
         )
-        result = [
-            {
-                "store_id":item['store__id'],
-                "store_name":item['store__name'],
-                "total_quantity":item['total_quantity']
-            }
-            for item in data
-        ]
-        return Response({   
-            "count": len(result),
-            "results": result
-        })
+        queryset = self.filter_queryset(queryset)
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            return self.get_paginated_response(page)
+        return Response(list(queryset))
 
 class DashboardSummaryView(APIView):
+    permission_classes = [IsAuthenticated]
     def get(self, request):
         threshold = request.query_params.get('threshold', 15)
         try:
             threshold = int(threshold)
         except ValueError:
             return Response({"error": "Threshold must be a number"}, status=400)
-        total_products = Product.objects.count()
-        total_stores = Store.objects.count()
-        total_inventory = Inventory.objects.aggregate(total=Sum('quantity'))['total'] or 0
-        low_stock_count = Inventory.objects.filter(quantity__lt=threshold).count()
+        
+        user = request.user
+        inventory_qs = get_inventory_queryset_for_user(user)
+
+        total_products = Product.objects.count() 
+        total_stores = Store.objects.count() if user.role == 'admin' else 1
+
+        total_inventory = inventory_qs.aggregate(total=Sum('quantity'))['total'] or 0
+        low_stock_count = inventory_qs.filter(quantity__lt=threshold).count()
 
         return Response({
             "total_products" : total_products,
@@ -283,3 +281,78 @@ class DashboardSummaryView(APIView):
             "total_inventory" : total_inventory,
             "low_stock_count" : low_stock_count
         })
+    
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        user = request.user
+        return Response({
+            "id":user.id,
+            "username":user.username,
+            "email":user.email,
+            "role": user.role,
+            "store": user.store.id if user.store else None
+        })
+    
+class InventoryTransactionViewSet(ModelViewSet):
+    serializer_class = InventoryTransactionSerializer
+    permission_classes = [IsAdminOrManagerWithStore, IsSameStore]
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return InventoryTransaction.objects.none()
+        user = self.request.user
+        qs = InventoryTransaction.objects.select_related('product', 'store', 'created_by')
+
+        if user.store:
+            return qs.filter(store=user.store).order_by('-timestamp')
+
+        return qs.order_by('-timestamp')
+        
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['product', 'store', 'type']
+
+    def perform_create(self, serializer):
+        with transaction.atomic():
+            user = self.request.user
+            product = serializer.validated_data['product']
+            quantity = serializer.validated_data['quantity']
+            t_type = serializer.validated_data['type']
+            if user.store:
+                store = user.store
+
+                requested_store = serializer.validated_data.get('store')
+                if requested_store and requested_store != user.store:
+                    raise ValidationError("Managers can only create transactions for their own store.")
+            else:
+                store = serializer.validated_data['store']
+
+            if quantity <= 0:
+                raise ValidationError("Quantity must be greater than 0")
+            inventory, created = Inventory.objects.get_or_create(
+                product = product,
+                store = store,
+                defaults = {'quantity':0}
+            )
+
+            if t_type == 'sale':
+                if inventory.quantity < quantity:
+                    raise ValidationError("Not enough stock")
+                inventory.quantity -= quantity
+            elif t_type == 'restock':
+                    inventory.quantity += quantity
+            inventory.save()
+            serializer.save(created_by=user, store=store)
+    
+    @action(detail=False, methods=['get'])
+    def my_transactions(self,request):
+        transactions = self.get_queryset().filter(created_by=request.user)
+        serializer = self.get_serializer(transactions, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def recent_transaction(self,request):
+        limit = int(request.query_params.get('limit', 10))
+        transactions = self.get_queryset()[:limit]  # already ordered by -timestamp
+        serializer = self.get_serializer(transactions, many=True)
+        return Response(serializer.data)
