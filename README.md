@@ -1,169 +1,183 @@
-# Django Retail Management Backend
+#  Retail Management API (Django + DRF)
 
-A Django + Django REST Framework backend system for managing products,
-stores, and inventory with real-world business logic and reporting
-features.
+A production-style backend built using Django and Django REST Framework for managing products, stores, inventory, and transactions with secure, role-based access control.
 
-------------------------------------------------------------------------
+---
 
-## Features
+##  Features
 
-### Core Functionality
+*  **JWT Authentication** (Login, Token Refresh)
+*  **Role-Based Access Control**
 
--   Manage Products, Stores, and Inventory
--   Full CRUD APIs using Django REST Framework
--   Proper relationships between models
+  * Admin → Full access
+  * Manager → Restricted to assigned store
+*  **Store-Based Data Isolation** (Multi-tenant architecture)
+*  **Transaction-Based Inventory System**
 
-### Business Logic
+  * All stock updates via transactions (sale/restock)
+  * Prevents negative stock & overselling
+* **Analytics Endpoints**
 
--   Inventory updates instead of duplicate entries
--   Automatic quantity merging for same product-store pair
--   Prevents over-selling (stock cannot go below 0)
+  * Low stock
+  * Out-of-stock
+  * Aggregated summaries
+*  **Pagination, Filtering & Search**
+*  **Optimized Queries using select_related**
+*  **Interactive API Docs (Swagger UI)**
 
-### Reporting and Insights
+---
 
--   Low stock detection (/low_stock/)
--   Out-of-stock items (/out_of_stock/)
--   Total stock per product
--   Total stock per store
--   Dashboard summary endpoint
+##  Tech Stack
 
-### API Features
+* **Backend:** Django, Django REST Framework
+* **Authentication:** SimpleJWT
+* **Documentation:** drf-yasg (Swagger/OpenAPI)
+* **Database:** SQLite (default, easily switchable)
 
--   Filtering and ordering support
--   Query parameters (e.g. threshold, ordering)
--   Clean and consistent JSON responses
+---
 
-------------------------------------------------------------------------
-
-## Tech Stack
-
--   Python
--   Django
--   Django REST Framework (DRF)
--   SQLite (default)
-
-------------------------------------------------------------------------
-
-## Project Structure
-
-    retail_project/
-    |
-    |-- inventory/
-    |   |-- models.py
-    |   |-- views.py
-    |   |-- serializers.py
-    |   |-- urls.py
-    |   |-- templates/
-    |
-    |-- retail_project/
-    |   |-- settings.py
-    |   |-- urls.py
-    |
-    |-- manage.py
-    |-- requirements.txt
-    |-- README.md
-
-------------------------------------------------------------------------
-
-## Setup Instructions
+##  Setup Instructions
 
 ### 1. Clone the repository
 
-```
-git clone https://github.com/YOUR_USERNAME/django-retail-backend.git cd
-django-retail-backend
+```bash
+git clone https://github.com/jasonsamueldas/django-retail-backend.git
+cd django-retail-backend
 ```
 
 ### 2. Create virtual environment
 
-```
-python -m venv venv venv`\Scripts`{=tex}`\activate`{=tex}
+```bash
+python -m venv venv
+venv\Scripts\activate   # Windows
+# source venv/bin/activate   # Mac/Linux
 ```
 
 ### 3. Install dependencies
 
-```
+```bash
 pip install -r requirements.txt
 ```
 
-### 4. Run migrations
+### 4️. Run migrations
 
-```
+```bash
 python manage.py migrate
 ```
 
-### 5. Run the server
+### 5️. Create superuser (optional)
 
+```bash
+python manage.py createsuperuser
 ```
+
+### 6️. Run server
+
+```bash
 python manage.py runserver
 ```
 
-------------------------------------------------------------------------
+---
 
-## API Endpoints
+##  Authentication
 
-### Products
+### Get JWT Token
 
-```
--   GET /api/products/
--   POST /api/products/
-```
-
-### Stores
-
-```
--   GET /api/stores/
--   POST /api/stores/
-
-```
-### Inventory
-
-```
--   GET /api/inventory/
--   POST /api/inventory/
+```http
+POST /api/token/
 ```
 
-------------------------------------------------------------------------
+```json
+{
+  "username": "your_username",
+  "password": "your_password"
+}
+```
 
-### Reporting Endpoints
+### Use Token
 
-Low Stock: GET ```/api/inventory/low_stock/?threshold=5```
+```
+Authorization: Bearer <your_access_token>
+```
 
-Out of Stock: GET ```/api/inventory/out_of_stock/```
+---
 
-Total by Product: GET ```/api/inventory/total_by_product/?ordering=-total_quantity```
+## 📖 API Documentation
 
-Total by Store: GET ```/api/inventory/total_by_store/?ordering=-total_quantity```
+Swagger UI available at:
 
-Dashboard Summary: 
-GET ```/api/dashboard/summary/ ```
-GET ```/api/dashboard/summary/?threshold=5```
+```
+http://127.0.0.1:8000/swagger/
+```
 
-------------------------------------------------------------------------
+Use the **Authorize button** to enter your JWT token.
 
-## Key Concepts Implemented
+---
 
--   RESTful API design
--   Model relationships (ForeignKey, unique constraints)
--   Business logic in ViewSets
--   Aggregation using Django ORM (Sum, annotate)
--   Query optimization (select_related)
--   Custom endpoints using @action
+##  Core Endpoints
 
-------------------------------------------------------------------------
+### 🔹 Products
 
-## Future Improvements
+* `GET /api/products/`
+* `POST /api/products/` (Admin only)
 
--   Authentication and permissions
--   Pagination
--   Frontend integration (React or Next.js)
--   Deployment (Render or AWS)
+### 🔹 Stores
 
-------------------------------------------------------------------------
+* `GET /api/stores/`
 
-## Author
+### 🔹 Inventory
 
-Jason Samuel Das
+* `GET /api/inventory/`
+* `GET /api/inventory/low_stock/?threshold=10`
+* `GET /api/inventory/out_of_stock/`
+* `GET /api/inventory/total_by_product/`
+* `GET /api/inventory/total_by_store/`
 
+### 🔹 Transactions
 
+* `POST /api/transactions/`
+* `GET /api/transactions/`
+
+### 🔹 User
+
+* `GET /api/me/`
+
+---
+
+##  Key Design Decisions
+
+* **Multi-Tenant Architecture:** Managers are restricted to their assigned store
+* **Server-Side Ownership Enforcement:** Store/user fields are never trusted from client input
+* **Transaction-Driven Inventory:** Prevents inconsistent stock states
+* **Separation of Concerns:**
+
+  * Permissions → Access control
+  * Utils → Query logic
+  * Views → Business logic
+
+---
+
+##  Testing
+
+Run tests using:
+
+```bash
+python manage.py test
+```
+
+---
+
+##  Future Improvements
+
+* Unit & integration test expansion
+* Docker deployment
+* PostgreSQL integration
+* CI/CD pipeline
+
+---
+
+##  Author
+
+**Jason Samuel Das**
+
+---
