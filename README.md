@@ -102,7 +102,7 @@ Authorization: Bearer <your_access_token>
 
 ---
 
-## 📖 API Documentation
+##  API Documentation
 
 Swagger UI available at:
 
